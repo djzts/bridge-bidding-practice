@@ -1,4 +1,5 @@
 export const messages = {
+  homepage: ['返回主页', 'FutureLab home'], homepageNewTab: ['返回 FutureLab 主页（在新标签页打开）', 'Open FutureLab home in a new tab'],
   switchLanguage: ['切换语言', 'Switch language'],
   continueAuction: ['继续自动叫牌', 'Continue auction'],
   ungraded: ['不评分 · 自然续叫', 'Ungraded · Natural continuation'],

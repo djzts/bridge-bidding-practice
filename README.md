@@ -4,6 +4,8 @@
 
 V0.2 让自由发牌完整叫到结束：你只控制南家，其余三家自动叫牌；未覆盖的教学进程使用明确标注、不评分的保守自然续叫策略。发布说明见 [docs/v0.2.md](docs/v0.2.md)。五张高花、SAYC 核心版和精确基础版仍有各自的教学范围，不等同完整竞赛体系。历史设计见 [docs/v0.1.md](docs/v0.1.md)、[docs/implementation-v0.1.md](docs/implementation-v0.1.md) 和 [docs/systems-v0.1.1.md](docs/systems-v0.1.1.md)。
 
+所有页面顶部的“返回主页”入口可访问 [FutureLab 个人主页](https://djzts.github.io/futurelab/)，在新标签页打开并保留当前练习。
+
 ## 本地运行
 
 需要 Node.js 20 或更高版本，无需安装依赖或执行构建：
