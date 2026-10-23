@@ -2,7 +2,7 @@
 
 支持中英文的单人桥牌叫牌练习器。选择搭档体系，练习叫牌，查看解释并复盘。
 
-V0.1 是具有明确覆盖范围的教学版本，提供五张高花、SAYC 核心版和精确基础版，**不是完整体系或通用桥牌专家引擎**。设计大纲见 [docs/v0.1.md](docs/v0.1.md)，首版规则见 [docs/implementation-v0.1.md](docs/implementation-v0.1.md)，新增体系范围见 [docs/systems-v0.1.1.md](docs/systems-v0.1.1.md)。
+V0.2 让自由发牌完整叫到结束：你只控制南家，其余三家自动叫牌；未覆盖的教学进程使用明确标注、不评分的保守自然续叫策略。发布说明见 [docs/v0.2.md](docs/v0.2.md)。五张高花、SAYC 核心版和精确基础版仍有各自的教学范围，不等同完整竞赛体系。历史设计见 [docs/v0.1.md](docs/v0.1.md)、[docs/implementation-v0.1.md](docs/implementation-v0.1.md) 和 [docs/systems-v0.1.1.md](docs/systems-v0.1.1.md)。
 
 ## 本地运行
 
@@ -25,7 +25,8 @@ node scripts/serve.mjs
 - 公开含义与本手理由分开显示；后者提前查看会标记辅助练习。
 - 复盘、收藏、错题标记、笔记、浏览器本地存储。
 - 体系／单副牌／完整备份的 JSON 导入导出，牌局链接分享。
-- 对未覆盖进程明确停止，保留牌局供复盘。
+- 自由发牌全程自动轮转，缺少教学规则时自然续叫并标记不评分；专项练习保留明确的教学范围提示。
+- Auction 位于牌桌中央，叫牌器在桌面右侧；中文约定名称附英文原名，英文界面使用英文内置体系名。
 
 ## 测试
 
@@ -62,6 +63,7 @@ node scripts/smoke.mjs
 src/
   cards.js       发牌、手牌分析、合法叫品、结束与庄家判断
   engine.js      单手信息决策、规则解释、练习发牌筛选
+  continuation.js 随机牌局的保守自然续叫策略
   extended-engine.js 精确、强开叫及 Jacoby 2NT 的有限后续
   systems.js     体系预设、约定目录、配置校验
   storage.js     本地保存、导入校验、牌局链接编码
@@ -86,4 +88,4 @@ scripts/
 
 ## English
 
-A bilingual, browser-only bridge bidding trainer. Run `node scripts/serve.mjs` and open the local URL above. No dependency installation or build is required. The teaching engine supports a bounded subset of natural five-card-major bidding, notrump responses, Stayman and Jacoby transfers. It stops explicitly when an auction requires an unimplemented rule. All practice data stays in the current browser; JSON backups and self-contained deal links are supported.
+A bilingual, browser-only bridge bidding trainer. Run `node scripts/serve.mjs` and open the local URL above. No dependency installation or build is required. The teaching engine supports a bounded subset of natural five-card-major bidding, notrump responses, Stayman and Jacoby transfers. V0.2 completes random auctions with South controlled by the user and the other three seats automated. Missing teaching rules use an explicitly ungraded conservative natural continuation; topic drills retain bounded teaching coverage. All practice data stays in the current browser; JSON backups and self-contained deal links are supported.

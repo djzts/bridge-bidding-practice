@@ -50,7 +50,7 @@ export function extendedChoices({ hand, seat, history, system }) {
     const game = 25 - anchor.min, invite = 25 - anchor.max, slam = 33 - anchor.max;
     if (trail.length === 1) {
       if (has('transfers')) for (const s of ['S', 'H']) add(level + (s === 'S' ? 'H' : 'D'), l[s] >= 5 && l[s] === Math.max(l.S, l.H) && p < slam, 'extendedTransfer', `至少五张${SYMBOLS[s]}，转移叫，要求接受转移。`, `5+ ${SYMBOLS[s]}; a transfer asking opener to accept.`, { suit: s, alert: true, forcing: true });
-      if (has('stayman')) add(level + 'C', p >= (level === 2 ? invite : game) && p < slam && Math.max(l.H, l.S) >= 4, 'extendedStayman', '斯台曼：询问四张高花，具有继续叫牌所需的实力。', 'Stayman: asks for a four-card major with values to continue.', { alert: true, forcing: true });
+      if (has('stayman')) add(level + 'C', p >= (level === 2 ? invite : game) && p < slam && Math.max(l.H, l.S) >= 4, 'extendedStayman', '斯台曼（Stayman）：询问四张高花，具有继续叫牌所需的实力。', 'Stayman: asks for a four-card major with values to continue.', { alert: true, forcing: true });
       end('3NT', p >= game && p < slam && Math.max(l.H, l.S) < 5, '结合搭档已显示的点力范围，选择无将成局。', 'Choose notrump game using partner’s shown strength range.');
       if (level === 2) add('2NT', p >= invite && p < game && Math.max(l.H, l.S) < 5, 'extendedInvite', `${invite}–${game - 1} HCP，邀请成局。`, `${invite}–${game - 1} HCP, inviting game.`, { inviteMin: invite });
       pass(p < (level === 2 ? invite : game)); return done();

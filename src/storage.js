@@ -10,19 +10,20 @@ export function defaults() {
 }
 function validSystem(s) { if (validateSystem(s).length) throw new Error('system'); return clone(s); }
 export function validateBoard(b) {
-  if (!b || !validDeal(b.hands) || !SEATS.includes(b.dealer) || !['none', 'NS', 'EW', 'both'].includes(b.vulnerability) || !Array.isArray(b.history) || b.history.length > 100 || !['active', 'complete', 'stopped'].includes(b.status)) throw new Error('board');
+  if (!b || !validDeal(b.hands) || !SEATS.includes(b.dealer) || !['none', 'NS', 'EW', 'both'].includes(b.vulnerability) || !Array.isArray(b.history) || b.history.length > 512 || !['active', 'complete', 'stopped'].includes(b.status)) throw new Error('board');
   const systems = { NS: validSystem(b.systems?.NS), EW: validSystem(b.systems?.EW) };
   const history = [];
   let seat = b.dealer;
   for (const entry of b.history) {
-    if (history.at(-1)?.rule === 'uncovered') throw new Error('unsupported continuation');
+    if (b.theme !== 'free' && history.at(-1)?.rule === 'uncovered') throw new Error('unsupported continuation');
     if (entry.seat !== seat || !legalCalls(history, seat).includes(entry.call)) throw new Error('auction');
-    history.push(evaluate({ hand: b.hands[seat], seat, history, system: systems[['N', 'S'].includes(seat) ? 'NS' : 'EW'] }, entry.call));
+    const evaluation = evaluate({ hand: b.hands[seat], seat, history, completeAuction: b.theme === 'free', system: systems[['N', 'S'].includes(seat) ? 'NS' : 'EW'] }, entry.call);
+    history.push(evaluation);
     seat = nextSeat(seat);
   }
   if (b.status === 'complete' && !auctionEnded(history)) throw new Error('auction');
   return { id: typeof b.id === 'string' && b.id.length <= 100 ? b.id : uid(), hands: clone(b.hands), dealer: b.dealer, vulnerability: b.vulnerability, systems, history,
-    status: auctionEnded(history) ? 'complete' : history.at(-1)?.rule === 'uncovered' ? 'stopped' : b.status, theme: ['free', 'opening', 'strong', 'nt', 'stayman', 'transfers'].includes(b.theme) ? b.theme : 'free',
+    status: auctionEnded(history) ? 'complete' : b.theme !== 'free' && history.at(-1)?.rule === 'uncovered' ? 'stopped' : b.status, theme: ['free', 'opening', 'strong', 'nt', 'stayman', 'transfers'].includes(b.theme) ? b.theme : 'free',
     created: Number.isFinite(b.created) ? b.created : Date.now(), assisted: !!b.assisted, favorite: !!b.favorite, mistake: !!b.mistake,
     note: typeof b.note === 'string' ? b.note.slice(0, 1000) : '', stopReason: history.at(-1)?.rule === 'uncovered' ? 'userCall' : ['coverage', 'manual', 'userCall'].includes(b.stopReason) ? b.stopReason : 'manual' };
 }

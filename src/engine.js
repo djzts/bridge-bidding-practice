@@ -1,5 +1,6 @@
 import { analyze, bidValue, legalCalls, partner, sameSide, SUITS, SYMBOLS, deal } from './cards.js';
 import { bilingual as bi, systemBase } from './systems.js';
+import { naturalContinuation } from './continuation.js';
 import { extendedChoices } from './extended-engine.js';
 
 // The decision API deliberately accepts ONE hand. Other hands never enter a decision.
@@ -68,7 +69,7 @@ export function choices({ hand, seat, history, system }) {
     const responder = partner(opening.seat);
     if (ours.length === 1 && seat === responder) {
       if (has('transfers')) for (const s of ['S', 'H']) add(s === 'S' ? '2H' : '2D', l[s] >= 5 && l[s] === Math.max(l.S, l.H) && p < slam, 'transfer', `转移叫：至少五张${suitName(s)}，要求开叫者叫${suitName(s)}；点力不限。`, `Transfer: 5+ ${suitName(s)}, asking opener to bid ${suitName(s)}; unrestricted strength.`, { suit: s, alert: true, forcing: true });
-      if (has('stayman')) add('2C', p >= invite && p < slam && (l.H >= 4 || l.S >= 4), 'stayman', `斯台曼：至少 ${invite} HCP，询问四张高花。本教学版本承诺至少一门四张高花。`, `Stayman: ${invite}+ HCP, asking for a four-card major. This teaching version promises a four-card major.`, { alert: true, forcing: true });
+      if (has('stayman')) add('2C', p >= invite && p < slam && (l.H >= 4 || l.S >= 4), 'stayman', `斯台曼（Stayman）：至少 ${invite} HCP，询问四张高花。本教学版本承诺至少一门四张高花。`, `Stayman: ${invite}+ HCP, asking for a four-card major. This teaching version promises a four-card major.`, { alert: true, forcing: true });
       if (has('naturalClubs')) add('2C', p < invite && l.C >= 6, 'signoff', '自然止叫：六张以上梅花，低于邀局实力。', 'Natural signoff: 6+ clubs and less than invitational strength.', { suit: 'C', terminal: true });
       if (has('naturalMajors')) for (const s of ['S', 'H', 'D']) add('2' + s, p < invite && l[s] >= 5, 'signoff', `自然止叫：五张以上${suitName(s)}，低于邀局实力。`, `Natural signoff: 5+ ${suitName(s)} and less than invitational strength.`, { suit: s, terminal: true });
       add('3NT', p >= game && p < slam && l.H < 5 && l.S < 5, 'ntGame', `${game}+ HCP，选择无将成局；仍有高花配合可能时先探索。`, `${game}+ HCP, choosing game in notrump; explore a possible major fit first.`, { terminal: true });
@@ -184,18 +185,24 @@ export function choices({ hand, seat, history, system }) {
 
 export function decide(context) {
   const options = choices(context);
-  return { options, recommended: options.find(c => c.fits) || null };
+  const recommended = options.find(c => c.fits) || null;
+  if (!recommended && context.completeAuction) {
+    const fallback = naturalContinuation(context);
+    return { options: [...options, fallback], recommended: fallback };
+  }
+  return { options, recommended };
 }
 export function evaluate(context, call) {
   const { options, recommended } = decide(context);
-  const chosen = options.find(c => c.call === call);
+  const chosen = recommended?.fallback && recommended.call === call ? recommended : options.find(c => c.call === call);
+  const ungraded = context.completeAuction && (recommended?.fallback || !chosen);
   const stats = analyze(context.hand);
   return {
     seat: context.seat, call,
     ...(chosen || { rule: 'uncovered', meaning: bi('当前体系尚未定义这一进程中的该叫品。', 'This call in this auction is not defined by the current system.') }),
-    feedback: !chosen ? 'uncovered' : !chosen.fits ? 'mismatch' : recommended?.call === call ? 'match' : 'alternative',
-    expected: recommended?.call || null,
-    reason: bi(`本手 ${stats.hcp} HCP；♠♥♣♦ 张数 ${SUITS.map(s => stats.lengths[s]).join('–')}。${chosen?.fits ? '满足上述条件。' : chosen ? '不满足上述条件，请对照点力与牌型。' : '此处无法可靠评价。'}`, `This hand has ${stats.hcp} HCP; ♠♥♣♦ lengths ${SUITS.map(s => stats.lengths[s]).join('–')}. ${chosen?.fits ? 'It meets the conditions above.' : chosen ? 'It does not meet the conditions above; compare strength and shape.' : 'A reliable assessment is unavailable here.'}`)
+    feedback: ungraded ? 'ungraded' : !chosen ? 'uncovered' : !chosen.fits ? 'mismatch' : recommended?.call === call ? 'match' : 'alternative',
+    expected: ungraded ? null : recommended?.call || null,
+    reason: bi(`本手 ${stats.hcp} HCP；♠♥♣♦ 张数 ${SUITS.map(s => stats.lengths[s]).join('–')}。${ungraded ? '自然续叫不作体系对错评分。' : chosen?.fits ? '满足上述条件。' : chosen ? '不满足上述条件，请对照点力与牌型。' : '此处无法可靠评价。'}`, `This hand has ${stats.hcp} HCP; ♠♥♣♦ lengths ${SUITS.map(s => stats.lengths[s]).join('–')}. ${ungraded ? 'Natural continuation is not graded against system agreements.' : chosen?.fits ? 'It meets the conditions above.' : chosen ? 'It does not meet the conditions above; compare strength and shape.' : 'A reliable assessment is unavailable here.'}`)
   };
 }
 
