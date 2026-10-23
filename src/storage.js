@@ -1,11 +1,11 @@
-import { DEFAULT_SYSTEM, validateSystem } from './systems.js';
+import { PRESETS, validateSystem } from './systems.js';
 import { validDeal, SEATS, nextSeat, legalCalls, auctionEnded } from './cards.js';
 import { evaluate } from './engine.js';
 export const STORAGE_KEY = 'bridge-studio-v01';
 export const clone = value => structuredClone(value);
 export const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 export function defaults() {
-  return { schema: 1, language: 'zh', systems: [clone(DEFAULT_SYSTEM)], ns: 'standard', ew: 'standard', records: [], current: null,
+  return { schema: 1, presetCatalogVersion: 2, language: 'zh', systems: clone(PRESETS), ns: 'standard', ew: 'standard', records: [], current: null,
     settings: { showHcp: true, showShape: false, visible: { N: false, E: false, W: false }, speed: 700, explainPartner: true, explainOpponents: true, autoFeedback: false } };
 }
 function validSystem(s) { if (validateSystem(s).length) throw new Error('system'); return clone(s); }
@@ -22,7 +22,7 @@ export function validateBoard(b) {
   }
   if (b.status === 'complete' && !auctionEnded(history)) throw new Error('auction');
   return { id: typeof b.id === 'string' && b.id.length <= 100 ? b.id : uid(), hands: clone(b.hands), dealer: b.dealer, vulnerability: b.vulnerability, systems, history,
-    status: auctionEnded(history) ? 'complete' : history.at(-1)?.rule === 'uncovered' ? 'stopped' : b.status, theme: ['free', 'opening', 'nt', 'stayman', 'transfers'].includes(b.theme) ? b.theme : 'free',
+    status: auctionEnded(history) ? 'complete' : history.at(-1)?.rule === 'uncovered' ? 'stopped' : b.status, theme: ['free', 'opening', 'strong', 'nt', 'stayman', 'transfers'].includes(b.theme) ? b.theme : 'free',
     created: Number.isFinite(b.created) ? b.created : Date.now(), assisted: !!b.assisted, favorite: !!b.favorite, mistake: !!b.mistake,
     note: typeof b.note === 'string' ? b.note.slice(0, 1000) : '', stopReason: history.at(-1)?.rule === 'uncovered' ? 'userCall' : ['coverage', 'manual', 'userCall'].includes(b.stopReason) ? b.stopReason : 'manual' };
 }
@@ -41,6 +41,8 @@ export function load() {
     const saved = JSON.parse(raw);
     const checked = validatePayload({ ...saved, kind: 'backup' });
     Object.assign(state, checked);
+    // Add new presets once without overwriting any existing customized system.
+    if (saved.presetCatalogVersion !== 2) for (const preset of PRESETS) if (!state.systems.some(s => s.id === preset.id) && state.systems.length < 100) state.systems.push(clone(preset));
     state.language = saved.language === 'en' ? 'en' : 'zh';
     for (const key of ['ns', 'ew']) state[key] = state.systems.some(s => s.id === saved[key]) ? saved[key] : state.systems[0].id;
     for (const key of ['showHcp', 'showShape', 'explainPartner', 'explainOpponents', 'autoFeedback']) if (typeof saved.settings?.[key] === 'boolean') state.settings[key] = saved.settings[key];

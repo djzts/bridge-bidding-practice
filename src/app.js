@@ -1,6 +1,6 @@
 import { SEATS, SUITS, STRAINS, SYMBOLS, RANKS, analyze, sortHand, nextSeat, callText, auctionEnded, legalCalls, contract, sameSide } from './cards.js';
 import { decide, evaluate, generateHands, describeGap } from './engine.js';
-import { DEFAULT_SYSTEM, CONVENTIONS, SYSTEM_LIBRARY, validateSystem } from './systems.js';
+import { PRESETS, CONVENTIONS, SYSTEM_LIBRARY, validateSystem, systemBase, baseName, systemScope } from './systems.js';
 import { clone, uid, load, persist, validatePayload, encodeBoard, decodeBoard } from './storage.js';
 import { translate } from './i18n.js';
 
@@ -57,10 +57,10 @@ function homeView() {
   const systemOptions = state.systems.map(s => [s.id, s.name]);
   return `${title('A LITTLE PRACTICE. A BETTER PARTNERSHIP.', t('welcome'), t('intro'))}
     <div class="home-grid"><section class="panel session-panel"><div class="section-title"><span class="step">01</span><h2>${t('session')}</h2><span class="subtle">SOUTH / 南</span></div>
-    <div class="theme-grid">${['free', 'opening', 'nt', 'stayman', 'transfers'].map((theme, i) => `<button data-action="theme" data-theme="${theme}" class="theme-card ${setup.theme === theme ? 'selected' : ''}" aria-pressed="${setup.theme === theme}"><span class="theme-number">0${i + 1}</span><strong>${t(theme)}</strong><small>${t(theme + 'Desc')}</small><span class="theme-check">${setup.theme === theme ? '✓' : '↗'}</span></button>`).join('')}</div>
+    <div class="theme-grid six-themes">${['free', 'opening', 'nt', 'stayman', 'transfers', 'strong'].map((theme, i) => `<button data-action="theme" data-theme="${theme}" class="theme-card ${setup.theme === theme ? 'selected' : ''}" aria-pressed="${setup.theme === theme}"><span class="theme-number">0${i + 1}</span><strong>${t(theme)}</strong><small>${t(theme + 'Desc')}</small><span class="theme-check">${setup.theme === theme ? '✓' : '↗'}</span></button>`).join('')}</div>
     <div class="form-grid"><label>${t('ourSystem')}${select('ns', systemOptions, state.ns)}</label><label>${t('theirSystem')}${select('ew', systemOptions, state.ew)}</label><label>${t('visibility')}${select('visibility', ['solo', 'partnership', 'all', 'custom'].map(v => [v, t(v)]), setup.visibility)}</label><label>${t('vulnerability')}${select('vulnerability', ['random', 'none', 'NS', 'EW', 'both'].map(v => [v, t(v)]), setup.vulnerability)}</label><label>${t('dealer')}${select('dealer', ['random', ...SEATS].map(v => [v, t(v)]), setup.dealer, setup.theme !== 'free' ? 'disabled' : '')}</label><div class="start-checks">${check('showHcp', t('hcp'), state.settings.showHcp)}${check('showShape', t('shape'), state.settings.showShape)}</div></div>
     ${setup.visibility === 'custom' ? `<div class="inline-controls">${['N', 'E', 'W'].map(s => check('visible-' + s, t(s), state.settings.visible[s])).join('')}</div>` : ''}
-    <p class="form-note">${setup.theme !== 'free' ? t('themeDealer') : t('policyNote')}</p>
+    <p class="form-note">${setup.theme === 'strong' ? t('strongDealer') : setup.theme !== 'free' ? t('themeDealer') : t('policyNote')}</p>
     <div class="session-bottom">${button('begin', busy ? t('generating') : t('begin') + ' <span>→</span>', 'btn primary wide', busy ? 'disabled' : '')}${state.current ? button('resume', t('resume'), 'text-button') : ''}</div></section>
     <aside class="home-aside"><div class="editorial-card"><span class="eyebrow">THE ART OF UNDERSTANDING</span><div class="decor-cards" aria-hidden="true"><div class="decor-card">A<span>♠</span></div><div class="decor-card red">K<span>♥</span></div></div><h2>${state.language === 'zh' ? '好的叫牌，<br>从听懂搭档开始。' : 'Good bidding starts<br>with listening.'}</h2><p>${state.language === 'zh' ? '不只知道叫什么。也知道这个叫品，向搭档说了什么。' : 'Learn what to bid, and what your bid says to the player across the table.'}</p><div class="editorial-line"></div><span class="eyebrow">PRACTICE · UNDERSTAND · REPEAT</span></div><div class="scope-card"><span class="scope-icon">↗</span><h3>${t('scope')} <span>V0.1</span></h3><p>${t('scopeText')}</p>${button('nav', t('system') + ' →', 'text-button', 'data-page="system"')}</div></aside></div>`;
 }
@@ -114,10 +114,11 @@ function systemView() {
   const errors = validateSystem(draft);
   return `${title('YOUR PARTNERSHIP AGREEMENTS', t('system'), t('systemIntro'), button('import', '↑ ' + t('import')) + button('exportSystem', '↓ ' + t('exportSystem')))}
     <div class="system-layout"><aside class="panel system-list">${state.systems.map(s => button('editSystem', `<strong>${esc(s.name)}</strong><span>v${s.version} · ${s.ntMin}–${s.ntMax} NT</span>`, `system-list-item ${draft.id === s.id ? 'active' : ''}`, `data-id="${esc(s.id)}"`)).join('')}${button('duplicate', '+ ' + t('duplicate'), 'text-button')}</aside>
-    <section class="panel system-editor"><div class="section-title"><h2>${state.language === 'zh' ? '基础体系' : 'Base system'}</h2><span class="badge">5-CARD MAJORS</span></div><div class="form-grid"><label>${t('systemName')}<input id="system-name" maxlength="100" value="${esc(draft.name)}"></label><label>${t('ntRange')}${select('ntRange', [['15', '15–17 HCP'], ['12', '12–14 HCP']], String(draft.ntMin))}</label></div>${check('fiveMajor', t('fiveMajor'), draft.allowFiveMajor)}<div class="system-basics"><span>1♥ / 1♠ <b>5+</b></span><span>1♣ / 1♦ <b>3+</b></span><span>${state.language === 'zh' ? '常规开叫' : 'Opening'} <b>12–21 HCP</b></span></div>
+    <section class="panel system-editor"><div class="section-title"><h2>${state.language === 'zh' ? '基础体系' : 'Base system'}</h2><span class="badge">${tx(baseName(draft))}</span></div><div class="form-grid"><label>${t('systemName')}<input id="system-name" maxlength="100" value="${esc(draft.name)}"></label><label>${t('baseSelector')}${select('systemBase', PRESETS.map(s => [systemBase(s), tx(baseName(s))]), systemBase(draft))}</label><label>${t('ntRange')}${select('ntRange', [['15', '15–17 HCP'], ['12', '12–14 HCP'], ['13', '13–15 HCP']], String(draft.ntMin))}</label></div>${check('fiveMajor', t('fiveMajor'), draft.allowFiveMajor)}<div class="system-basics"><span>1♥ / 1♠ <b>5+</b></span><span>${systemBase(draft) === 'precision' ? '1♣ <b>16+ HCP</b> · 1♦ <b>2+</b>' : '1♣ / 1♦ <b>3+</b>'}</span><span>${state.language === 'zh' ? '常规开叫' : 'Opening'} <b>${systemBase(draft) === 'precision' ? '11–15' : systemBase(draft) === 'sayc' ? '13–21' : '12–21'} HCP</b></span></div>
     <div class="section-title convention-title"><h2>${t('conventions')}</h2><span>${state.language === 'zh' ? '可多选 · 自动检测冲突' : 'Multi-select · Conflict checks'}</span></div><div class="convention-options">${CONVENTIONS.filter(c => c.enabled).map(c => `<label class="convention-option ${draft.conventions.includes(c.id) ? 'enabled' : ''}"><input type="checkbox" data-convention="${c.id}" ${draft.conventions.includes(c.id) ? 'checked' : ''}><span><strong>${esc(tx(c.name))}</strong><small>${esc(tx(c.text))}</small></span><code>${c.sequence}</code></label>`).join('')}</div>
     ${errors.length ? `<div class="notice amber" role="alert"><strong>${t('conflict')}</strong>${errors.map(e => `<p>${esc(tx(e))}</p>`).join('')}</div>` : ''}
-    <div class="editor-actions">${button('saveSystem', t('saveSystem'), 'btn primary', errors.length ? 'disabled' : '')}${button('reset', t('reset'), 'btn')}${button('deleteSystem', t('delete'), 'text-button danger', state.systems.length < 2 ? 'disabled' : '')}<span class="muted small">${draftDirty ? t('unsaved') : t('saved')}</span></div></section></div><div class="scope-inline"><strong>${t('scope')}</strong><p>${t('scopeText')}</p></div>`;
+    <p class="muted small">${t('referenceUnavailable')} ${CONVENTIONS.filter(c => !c.enabled).map(c => esc(tx(c.name))).join(' · ')}</p>
+    <div class="editor-actions">${button('saveSystem', t('saveSystem'), 'btn primary', errors.length ? 'disabled' : '')}${button('reset', t('reset'), 'btn')}${button('deleteSystem', t('delete'), 'text-button danger', state.systems.length < 2 ? 'disabled' : '')}<span class="muted small">${draftDirty ? t('unsaved') : t('saved')}</span></div></section></div><div class="scope-inline"><strong>${t('scope')}</strong><p>${esc(tx(systemScope(draft)))}</p></div>`;
 }
 function libraryView() {
   const items = CONVENTIONS.filter(c => (libraryGroup === 'all' || c.group === libraryGroup) && `${c.name.zh} ${c.name.en}`.toLowerCase().includes(libraryQuery.toLowerCase()));
@@ -158,6 +159,7 @@ async function start() {
   if (busy) return;
   const theme = setup.theme;
   if (['stayman', 'transfers'].includes(theme) && !selectedSystem('ns').conventions.includes(theme)) { toast(t('conventionRequired')); return; }
+  if (theme === 'strong' && systemBase(selectedSystem('ns')) !== 'precision' && !selectedSystem('ns').conventions.includes('strong2c')) { toast(t('strongRequired')); return; }
   busy = true; render();
   // Yield before generation so the loading state paints.
   await new Promise(resolve => setTimeout(resolve, 20));
@@ -233,7 +235,7 @@ root.addEventListener('click', async event => {
       const index = state.systems.findIndex(s => s.id === draft.id);
       state.systems[index] = clone(draft); draftDirty = false; save(); render(); toast(t('saved')); return;
     }
-    case 'reset': draft = { ...clone(DEFAULT_SYSTEM), id: draft.id, name: draft.name, version: draft.version }; draftDirty = true; render(); return;
+    case 'reset': draft = { ...clone(PRESETS.find(s => systemBase(s) === systemBase(draft))), id: draft.id, name: draft.name, version: draft.version }; draftDirty = true; render(); return;
     case 'deleteSystem': if (state.systems.length < 2) { toast(t('lastSystem')); return; } state.systems = state.systems.filter(s => s.id !== draft.id); for (const side of ['ns', 'ew']) if (state[side] === draft.id) state[side] = state.systems[0].id; draft = clone(state.systems[0]); draftDirty = false; save(); render(); return;
     case 'exportSystem': if (validateSystem(draft).length) { toast(t('conflict')); return; } download({ schema: 1, kind: 'system', system: draft }, 'bridge-system.json'); return;
     case 'import': document.querySelector('#import-file').click(); return;
@@ -253,7 +255,8 @@ root.addEventListener('change', event => {
     else state.settings[key] = el.checked;
   } else if (el.dataset.convention) {
     draft.conventions = el.checked ? [...draft.conventions, el.dataset.convention] : draft.conventions.filter(id => id !== el.dataset.convention); draftDirty = true;
-  } else if (el.name === 'ntRange') { draft.ntMin = Number(el.value); draft.ntMax = draft.ntMin + 2; draftDirty = true; }
+  } else if (el.name === 'systemBase') { draft = { ...clone(PRESETS.find(s => systemBase(s) === el.value)), id: draft.id, name: draft.name, version: draft.version }; draftDirty = true; }
+  else if (el.name === 'ntRange') { draft.ntMin = Number(el.value); draft.ntMax = draft.ntMin + 2; draftDirty = true; }
   else if (el.name === 'speed') state.settings.speed = Number(el.value);
   else if (['ns', 'ew'].includes(el.name)) state[el.name] = el.value;
   else if (['visibility', 'dealer', 'vulnerability'].includes(el.name)) setup[el.name] = el.value;

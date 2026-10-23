@@ -1,8 +1,13 @@
 import { analyze, bidValue, legalCalls, partner, sameSide, SUITS, SYMBOLS, deal } from './cards.js';
-import { bilingual as bi } from './systems.js';
+import { bilingual as bi, systemBase } from './systems.js';
+import { extendedChoices } from './extended-engine.js';
 
 // The decision API deliberately accepts ONE hand. Other hands never enter a decision.
 export function choices({ hand, seat, history, system }) {
+  const extended = extendedChoices({ hand, seat, history, system });
+  if (extended !== null) return extended;
+  const base = systemBase(system), openingMin = base === 'precision' ? 11 : base === 'sayc' ? 13 : 12;
+  const openingMax = base === 'precision' ? 15 : 21;
   const { hcp: p, lengths: l, balanced } = analyze(hand);
   const legal = legalCalls(history, seat);
   const result = [];
@@ -22,13 +27,19 @@ export function choices({ hand, seat, history, system }) {
   const longest = [...SUITS].sort((a, b) => l[b] - l[a] || ['S', 'H', 'D', 'C'].indexOf(a) - ['S', 'H', 'D', 'C'].indexOf(b));
 
   if (!opening) {
+    if (base === 'sayc') {
+      add('2NT', balanced && p >= 20 && p <= 21, 'openNT2', 'SAYC：20–21 HCP，均型。', 'SAYC: 20–21 HCP, balanced.', { min: 20, max: 21 });
+      add('3NT', balanced && p >= 25 && p <= 27, 'openNT3', 'SAYC：25–27 HCP，均型；强无将，非赌博性 3NT。', 'SAYC: 25–27 HCP, balanced; strong notrump, not gambling 3NT.', { min: 25, max: 27 });
+    }
+    if (has('strong2c')) add('2C', p >= 22, 'strong2c', '22+ HCP，人工强开叫，逼叫一轮。本版只按 HCP 识别强牌。', 'Artificial strong opening with 22+ HCP, forcing one round. This version recognizes strong hands by HCP only.', { min: 22, alert: true, forcing: true });
     const ntShape = balanced && (system.allowFiveMajor || (l.H < 5 && l.S < 5));
     add('1NT', ntShape && p >= system.ntMin && p <= system.ntMax, 'openNT', `${system.ntMin}–${system.ntMax} HCP，均型${system.allowFiveMajor ? '；允许五张高花' : '，无五张高花'}。`, `${system.ntMin}–${system.ntMax} HCP, balanced${system.allowFiveMajor ? '; a five-card major is allowed' : ', no five-card major'}.`, { min: system.ntMin, max: system.ntMax });
-    for (const s of ['S', 'H']) add('1' + s, p >= 12 && p <= 21 && l[s] >= 5 && l[s] === Math.max(l.S, l.H) && !(s === 'H' && l.S === l.H), 'openSuit', `12–21 HCP，至少五张${suitName(s)}。双高花等长时先叫黑桃。`, `12–21 HCP and 5+ ${suitName(s)}. With equal major lengths, open spades.`, { suit: s, min: 12, max: 21 });
+    for (const s of ['S', 'H']) add('1' + s, p >= openingMin && p <= openingMax && l[s] >= 5 && l[s] === Math.max(l.S, l.H) && !(s === 'H' && l.S === l.H), 'openSuit', `${openingMin}–${openingMax} HCP，至少五张${suitName(s)}。双高花等长时先叫黑桃。`, `${openingMin}–${openingMax} HCP and 5+ ${suitName(s)}. With equal major lengths, open spades.`, { suit: s, min: openingMin, max: openingMax });
     const minor = l.D > l.C || (l.D === l.C && l.D >= 4) ? 'D' : 'C';
-    for (const s of ['D', 'C']) add('1' + s, p >= 12 && p <= 21 && l.H < 5 && l.S < 5 && minor === s, 'openSuit', `12–21 HCP，至少三张${suitName(s)}；优先较长低花，3–3 先梅花，4–4 先方块。`, `12–21 HCP and 3+ ${suitName(s)}; longer minor, clubs with 3–3, diamonds with 4–4.`, { suit: s, min: 12, max: 21 });
-    if (has('weakTwo')) for (const s of ['S', 'H', 'D']) add('2' + s, p >= 6 && p <= 10 && l[s] === 6 && hand.filter(c => c[0] === s && 'AKQ'.includes(c[1])).length >= 2, 'weakTwo', `6–10 HCP，六张${suitName(s)}且含至少两张 A/K/Q。`, `6–10 HCP, six ${suitName(s)} with at least two of A/K/Q.`, { suit: s, min: 6, max: 10 });
-    pass(p < 12, '不足常规开叫实力；若满足弱二条件，优先考虑弱二。', 'Below normal opening strength; prefer a weak two when its requirements are met.');
+    for (const s of ['D', 'C']) add('1' + s, p >= openingMin && p <= openingMax && l.H < 5 && l.S < 5 && minor === s, 'openSuit', `${openingMin}–${openingMax} HCP，至少三张${suitName(s)}；优先较长低花，3–3 先梅花，4–4 先方块。`, `${openingMin}–${openingMax} HCP and 3+ ${suitName(s)}; longer minor, clubs with 3–3, diamonds with 4–4.`, { suit: s, min: openingMin, max: openingMax });
+    const weakMin = base === 'sayc' ? 5 : 6, weakMax = base === 'sayc' ? 11 : 10;
+    if (has('weakTwo')) for (const s of ['S', 'H', 'D']) add('2' + s, p >= weakMin && p <= weakMax && l[s] === 6 && hand.filter(c => c[0] === s && 'AKQ'.includes(c[1])).length >= 2, 'weakTwo', `${weakMin}–${weakMax} HCP，六张${suitName(s)}且含至少两张 A/K/Q。`, `${weakMin}–${weakMax} HCP, six ${suitName(s)} with at least two of A/K/Q.`, { suit: s, min: weakMin, max: weakMax });
+    pass(p < openingMin, '不足常规开叫实力；若满足弱二条件，优先考虑弱二。', 'Below normal opening strength; prefer a weak two when its requirements are met.');
     return finish();
   }
 
@@ -122,15 +133,18 @@ export function choices({ hand, seat, history, system }) {
   }
 
   if (opening.rule === 'openSuit') {
-    const s = opening.suit, major = ['H', 'S'].includes(s), support = major ? 3 : 5;
+    const s = opening.suit, major = ['H', 'S'].includes(s), support = major ? 3 : base === 'precision' ? 6 : 5;
     if (ours.length === 1) {
       if (major) {
-        add('4' + s, p >= 13 && p <= 15 && l[s] >= 4, 'majorGame', '教学自然加叫：13–15 HCP，至少四张将牌，直接成局。', 'Teaching natural raise: 13–15 HCP and 4+ trumps; bid game.', { terminal: true, suit: s });
+        if (has('jacoby2nt') && base !== 'precision') add('2NT', p >= 13 && l[s] >= 4 && !history.some(e => e.seat === seat && e.call === 'P'), 'jacobyRaise', 'Jacoby 2NT：未 Pass 过，13+ HCP、四张以上支持，逼局并询问短套／牌力。', 'Jacoby 2NT: an unpassed hand with 13+ HCP and 4+ trumps, forcing to game and asking about shortness/strength.', { suit: s, forcing: true, alert: true });
+        if (base === 'sayc') add('4' + s, p <= 9 && l[s] >= 5 && SUITS.some(t => t !== s && l[t] <= 1), 'majorGame', 'SAYC 阻击性成局加叫：低点力、五张以上支持且有单缺；不是强牌逼局加叫。', 'SAYC preemptive game raise: low values, 5+ trumps and shortness; not a strong forcing raise.', { terminal: true, suit: s });
+        else add('4' + s, p >= (base === 'precision' ? 14 : 13) && p <= 15 && l[s] >= 4, 'majorGame', `${base === 'precision' ? '14' : '13'}–15 HCP，至少四张将牌，直接成局。`, `${base === 'precision' ? '14' : '13'}–15 HCP and 4+ trumps; bid game.`, { terminal: true, suit: s });
         add('3' + s, p >= 10 && p <= 12 && l[s] >= 3, 'limitRaise', '10–12 HCP，至少三张支持，限制性邀局加叫。', '10–12 HCP and 3+ card support; a limit raise.', { suit: s });
       }
       add('2' + s, p >= 6 && p <= 9 && l[s] >= support, 'simpleRaise', `6–9 HCP，至少${support}张支持，单加叫。`, `6–9 HCP and ${support}+ card support; a simple raise.`, { suit: s });
       const responseSuits = ['H', 'S'].sort((a, b) => l[b] - l[a]).concat('D');
       for (const t of responseSuits) if (t !== s) add('1' + t, p >= 6 && p <= 18 && l[t] >= 4, 'newSuit', `6+ HCP，至少四张${suitName(t)}，逼叫一轮。高花四四先红心。`, `6+ HCP and 4+ ${suitName(t)}, forcing one round. Bid hearts first with four-four majors.`, { forcing: true, suit: t });
+      if (base === 'sayc') for (const t of ['C', 'D', 'H']) if (t !== s && bidValue('2' + t) - bidValue(opening.call) < 5) add('2' + t, p >= 10 && l[t] >= (t === 'H' ? 5 : 4), 'newSuitTwo', `SAYC 二盖一：10+ HCP，${t === 'H' ? '五' : '四'}张以上${SYMBOLS[t]}，逼叫一轮，并非自动逼局。后续尚未全部覆盖。`, `SAYC two-over-one: 10+ HCP, ${t === 'H' ? '5' : '4'}+ ${SYMBOLS[t]}, forcing one round, not automatically to game. Continuations are not fully covered.`, { suit: t, forcing: true });
       add('1NT', p >= 6 && p <= 9, 'suitNT', '6–9 HCP，不能在一阶显示高花，非逼叫。', '6–9 HCP, no available one-level major response; nonforcing.');
       pass(p < 6, '少于 6 HCP，不应叫。', 'Fewer than 6 HCP; no response.'); return finish();
     }
@@ -142,21 +156,23 @@ export function choices({ hand, seat, history, system }) {
     }
     if (last.rule === 'newSuit') {
       const t = last.suit;
-      if (['H', 'S'].includes(t)) add('2' + t, l[t] >= 4 && p <= 15, 'rebidRaise', '12–15 HCP，四张支持搭档高花。', '12–15 HCP and four-card support for partner’s major.', { suit: t, min: 12, max: 15 });
+      if (['H', 'S'].includes(t)) add('2' + t, l[t] >= 4 && p <= 15, 'rebidRaise', `${openingMin}–15 HCP，四张支持搭档高花。`, `${openingMin}–15 HCP and four-card support for partner’s major.`, { suit: t, min: openingMin, max: 15 });
       const unshownMajor = ['H', 'S'].some(m => m !== t && l[m] >= 4 && legal.includes('1' + m));
-      add('1NT', balanced && p >= 12 && p <= 14 && !unshownMajor && (!['H', 'S'].includes(t) || l[t] < 4), 'rebidNT', '12–14 HCP，均型，无四张支持搭档高花，也没有可在一阶显示的另一门四张高花。', '12–14 HCP, balanced, without four-card support or an available one-level four-card major rebid.', { min: 12, max: 14 });
-      add('2' + s, p <= 15 && l[s] >= 6, 'rebidLong', '12–15 HCP，六张以上开叫花色，非逼叫。', '12–15 HCP and 6+ cards in the opening suit; nonforcing.', { suit: s, min: 12, max: 15 }); return finish();
+      const rebidMax = base === 'precision' ? system.ntMin - 1 : 14;
+      add('1NT', balanced && p >= openingMin && p <= rebidMax && !unshownMajor && (!['H', 'S'].includes(t) || l[t] < 4), 'rebidNT', `${openingMin}–${rebidMax} HCP，均型，无四张支持搭档高花，也没有可在一阶显示的另一门四张高花。`, `${openingMin}–${rebidMax} HCP, balanced, without four-card support or an available one-level four-card major rebid.`, { min: openingMin, max: rebidMax });
+      add('2' + s, p <= 15 && l[s] >= 6, 'rebidLong', `${openingMin}–15 HCP，六张以上开叫花色，非逼叫。`, `${openingMin}–15 HCP and 6+ cards in the opening suit; nonforcing.`, { suit: s, min: openingMin, max: 15 }); return finish();
     }
     if (last.rule === 'suitNT') {
       add('2' + s, l[s] >= 6 && p <= 15, 'signoff', '六张以上开叫花色，最低限止叫。', '6+ cards in the opening suit; minimum signoff.', { terminal: true, suit: s });
       pass(p <= 15, '最低限，接受搭档的非逼叫 1NT。', 'Minimum; accept partner’s nonforcing 1NT.'); return finish();
     }
     if (last.rule === 'rebidNT') {
-      add('3NT', p >= 13 && p <= 18 && balanced, 'ntGame', '均型，结合搭档 12–14 HCP 选择无将成局。', 'Balanced; choose notrump game opposite partner’s 12–14 HCP.', { terminal: true });
-      add('2NT', p >= 11 && p <= 12 && balanced, 'naturalInvite', '11–12 HCP，均型，邀请 3NT。', '11–12 HCP, balanced; invite 3NT.');
-      pass(p <= 10, '不足邀局实力，接受 1NT。', 'Below invitational strength; accept 1NT.'); return finish();
+      const minimum = base === 'teaching' ? 12 : last.min, maximum = last.max;
+      add('3NT', p >= 25 - minimum && p <= 18 && balanced, 'ntGame', `均型，结合搭档 ${minimum}–${maximum} HCP 选择无将成局。`, `Balanced; choose notrump game opposite partner’s ${minimum}–${maximum} HCP.`, { terminal: true });
+      add('2NT', p >= 25 - maximum && p < 25 - minimum && balanced, 'naturalInvite', `${25 - maximum}–${24 - minimum} HCP，均型，邀请 3NT。`, `${25 - maximum}–${24 - minimum} HCP, balanced; invite 3NT.`, { acceptMin: maximum });
+      pass(p < 25 - maximum, '不足邀局实力，接受 1NT。', 'Below invitational strength; accept 1NT.'); return finish();
     }
-    if (last.rule === 'naturalInvite') { add('3NT', p === 14, 'ntGame', '最高限，接受邀局。', 'Maximum; accept the invitation.', { terminal: true }); pass(p < 14); return finish(); }
+    if (last.rule === 'naturalInvite') { add('3NT', p >= (last.acceptMin || 14), 'ntGame', '最高限，接受邀局。', 'Maximum; accept the invitation.', { terminal: true }); pass(p < (last.acceptMin || 14)); return finish(); }
     if (last.rule === 'rebidRaise') {
       add('4' + last.suit, p >= 13 && p <= 18, 'majorGame', '已确认高花配合，具有成局实力。', 'A confirmed major fit with game values.', { terminal: true, suit: last.suit });
       pass(p <= 9, '接受最低限高花部分定约。', 'Accept the minimum major partscore.'); return finish();
@@ -186,7 +202,8 @@ export function evaluate(context, call) {
 export function describeGap(context) {
   const actions = context.history.filter(e => e.call !== 'P');
   const p = analyze(context.hand).hcp;
-  if (!actions.length && p >= 22) return bi('本手达到强开叫范围，强 2♣ 及其后续尚未实现。', 'This hand reaches the strong-opening range. Strong 2♣ and its continuations are not implemented.');
+  if (!actions.length && p >= 22) return bi('本手需要强开叫，请启用适用的强 2♣ 或选择支持强梅花的精确体系。', 'This hand needs a strong opening; enable strong 2♣ where applicable or select Precision for strong clubs.');
+  if (actions.some(e => ['precisionClub', 'precisionClubs', 'precisionShortD', 'strong2c', 'jacobyRaise', 'openNT2', 'openNT3'].includes(e.rule))) return bi('此体系的开叫／约定已定义，但当前手牌需要未覆盖的接力、强牌后续、满贯或干扰处理。', 'The system opening/convention is defined, but this hand needs an uncovered relay, strong-hand continuation, slam decision or competitive treatment.');
   if (actions.some(e => ['X', 'XX'].includes(e.call))) return bi('加倍／再加倍合法性已支持，但这段叫牌的含义与后续尚未定义。', 'Double/redouble legality is supported, but the meanings and continuations here are not defined.');
   if (actions.length && !actions.some(e => sameSide(e.seat, context.seat))) return bi('本手需要当前教学防守策略之外的决定；该争叫或技术性加倍进程尚未覆盖。', 'This hand needs a decision beyond the teaching defensive policy; the overcall or takeout-double sequence is not covered.');
   if (actions.some(e => sameSide(e.seat, context.seat)) && actions.some(e => !sameSide(e.seat, context.seat))) return bi('这一竞争性叫牌进程的继续叫牌尚未定义。', 'Further bidding in this competitive auction is not defined.');
@@ -196,6 +213,8 @@ export function describeGap(context) {
 }
 
 export async function generateHands(theme, system, rng = Math.random) {
+  if (!['free', 'opening', 'strong', 'nt', 'stayman', 'transfers'].includes(theme)) throw new Error('theme');
+  if (theme === 'strong' && systemBase(system) !== 'precision' && !system.conventions.includes('strong2c')) throw new Error('strong opening not enabled');
   for (let n = 0; n < 100000; n++) {
     if (n && n % 500 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     const hands = deal(rng);
@@ -203,6 +222,11 @@ export async function generateHands(theme, system, rng = Math.random) {
     const s = analyze(hands.S);
     if (theme === 'opening' && s.hcp >= 8 && s.hcp <= 21) return hands;
     const north = analyze(hands.N);
+    if (theme === 'strong') {
+      const precision = systemBase(system) === 'precision';
+      if (north.balanced && north.hcp >= (precision ? 16 : 22) && north.hcp <= (precision ? 18 : 24) && s.balanced && Math.max(s.lengths.H, s.lengths.S) < 5 && s.hcp >= (precision ? 8 : 0) && s.hcp <= (precision ? 13 : 7) && analyze(hands.E).hcp < 10 && analyze(hands.W).hcp < 10) return hands;
+      continue;
+    }
     if (!north.balanced || north.hcp < system.ntMin || north.hcp > system.ntMax || (!system.allowFiveMajor && (north.lengths.H >= 5 || north.lengths.S >= 5))) continue;
     if (analyze(hands.E).hcp >= 10 || analyze(hands.W).hcp >= 10 || s.hcp >= 33 - system.ntMax) continue;
     if (theme === 'nt' && s.balanced && s.lengths.H < 4 && s.lengths.S < 4) return hands;

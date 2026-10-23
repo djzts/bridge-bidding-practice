@@ -2,7 +2,7 @@
 
 支持中英文的单人桥牌叫牌练习器。选择搭档体系，练习叫牌，查看解释并复盘。
 
-V0.1 是具有明确覆盖范围的教学版本，**不是完整 SAYC 或通用桥牌专家引擎**。设计大纲见 [docs/v0.1.md](docs/v0.1.md)，实际规则范围见 [docs/implementation-v0.1.md](docs/implementation-v0.1.md)。
+V0.1 是具有明确覆盖范围的教学版本，提供五张高花、SAYC 核心版和精确基础版，**不是完整体系或通用桥牌专家引擎**。设计大纲见 [docs/v0.1.md](docs/v0.1.md)，首版规则见 [docs/implementation-v0.1.md](docs/implementation-v0.1.md)，新增体系范围见 [docs/systems-v0.1.1.md](docs/systems-v0.1.1.md)。
 
 ## 本地运行
 
@@ -18,8 +18,8 @@ node scripts/serve.mjs
 
 - 开始练习、叫牌桌、体系配置、约定资料库、练习记录五个页面。
 - 中英文切换，桌面和手机布局。
-- 自由发牌、开叫、无将应叫、Stayman、转移叫训练。
-- 独立配置双方体系；15–17 / 12–14 无将、五张高花设置、约定选择和冲突检测。
+- 自由发牌、开叫、无将应叫、Stayman、转移叫、强开叫六种训练。
+- 独立配置双方体系；五张高花、SAYC、精确预设，15–17 / 12–14 / 13–15 无将、五张高花设置、约定选择和冲突检测。
 - 合法叫牌器、自动叫牌、四列叫牌历史、庄家与最终定约。
 - 独立手牌显隐、HCP / 牌型开关、提示、撤回、重练、自动叫牌速度。
 - 公开含义与本手理由分开显示；后者提前查看会标记辅助练习。
@@ -62,6 +62,7 @@ node scripts/smoke.mjs
 src/
   cards.js       发牌、手牌分析、合法叫品、结束与庄家判断
   engine.js      单手信息决策、规则解释、练习发牌筛选
+  extended-engine.js 精确、强开叫及 Jacoby 2NT 的有限后续
   systems.js     体系预设、约定目录、配置校验
   storage.js     本地保存、导入校验、牌局链接编码
   i18n.js        中英文界面文字
@@ -69,6 +70,7 @@ src/
   styles.css     响应式界面
 test/
   engine.test.js Node 内置测试
+  systems.test.js 新体系、配置迁移及完整专题进程测试
 scripts/
   serve.mjs      零依赖本地 HTTP 服务
   smoke.mjs      可选浏览器验收

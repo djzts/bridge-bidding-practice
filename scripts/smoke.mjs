@@ -93,6 +93,43 @@ try {
   await page.goto(base + '#deal=' + shared);
   await page.waitForTimeout(100);
   assert.equal((await saved()).current.systems.NS.name, '五张高花 · Five-card majors');
+  // Newly added systems must change actual auctions, including separate EW setup.
+  for (const [system, opening] of [['precision', '1C'], ['sayc', '2C']]) {
+    await page.locator('.nav-item[data-page="home"]').click();
+    await page.selectOption('select[name="ns"]', system);
+    await page.selectOption('select[name="ew"]', system === 'precision' ? 'sayc' : 'precision');
+    await page.locator('[data-theme="strong"]').click();
+    await action('begin').click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('bridge-studio-v01')).current?.history.length === 2);
+    assert.equal((await saved()).current.history[0].call, opening);
+    assert.equal((await saved()).current.systems.NS.base, system);
+    await page.screenshot({ path: `test-results/${system}-strong-opening.png`, fullPage: true });
+    for (let i = 0; i < 12; i++) {
+      await page.waitForTimeout(60);
+      if ((await saved()).current.status !== 'active') break;
+      const next = await page.evaluate(async () => {
+        const { decide } = await import('./src/engine.js');
+        const b = JSON.parse(localStorage.getItem('bridge-studio-v01')).current;
+        return decide({ hand: b.hands.S, seat: 'S', history: b.history, system: b.systems.NS }).recommended?.call;
+      });
+      assert.ok(next, `Missing ${system} continuation`);
+      await page.locator(`[data-action="choose"][data-call="${next}"]`).click();
+      await action('submit').click();
+    }
+    assert.equal((await saved()).current.status, 'complete');
+    await page.reload(); await action('resume').click();
+    assert.equal((await saved()).current.systems.NS.base, system);
+  }
+  await page.locator('.nav-item[data-page="system"]').click();
+  await page.locator('[data-action="editSystem"][data-id="precision"]').click();
+  await page.locator('[data-convention="strong2c"]').check();
+  assert.ok(await action('saveSystem').isDisabled());
+  await action('duplicate').click();
+  assert.equal((await saved()).systems.length, 3);
+  await action('reset').click();
+  assert.equal(await page.locator('[name="ntRange"]').inputValue(), '13');
+  assert.equal(await page.locator('[data-convention="strong2c"]').isChecked(), false);
+  await action('saveSystem').click();
   for (const width of [390, 360, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const p of ['table', 'home', 'system', 'library', 'records']) {
@@ -103,5 +140,5 @@ try {
     }
   }
   assert.deepEqual(errors, []);
-  console.log('Browser acceptance passed: session, undo, bilingual UI, review, persistence, conflicts, search, export/import, share, five routes at four widths.');
+  console.log('Browser acceptance passed: session, undo, bilingual UI, review, persistence, conflicts, search, export/import, share, Precision/SAYC strong-opening sessions, five routes at four widths.');
 } finally { await browser.close(); }
